@@ -6,6 +6,8 @@ const nextConfig = {
     domains: [
       'platform-lookaside.fbsbx.com',
       'firebasestorage.googleapis.com',
+      'loremflickr.com',
+      'cloudflare-ipfs.com',
     ],
   },
 }
