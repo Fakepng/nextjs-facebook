@@ -2,27 +2,68 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { EmojiHappyIcon } from "@heroicons/react/outline";
 import { CameraIcon, VideoCameraIcon } from "@heroicons/react/solid";
-import { useRef } from "react";
-import { firebase, db } from "../firebase.config";
+import { useRef, useState } from "react";
+import { db, storage } from "../firebase.config";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 function InputBox() {
 	const { data: session } = useSession();
 	const inputRef = useRef(null);
+	const filePickerRef = useRef(null);
+	const [imageToPost, setImageToPost] = useState(null);
 
-	const sendPost = (event) => {
+	const sendPost = async (event) => {
 		event.preventDefault();
 
 		if (!inputRef.current.value) return;
 
-		db.collection("posts").add({
+		await addDoc(collection(db, "posts"), {
 			message: inputRef.current.value,
 			name: session.user.name,
 			email: session.user.email,
 			image: session.user.image,
-			timeStamp: firebase.firestore.FieldValue.serverTimestamp(),
+			timeStamp: serverTimestamp(),
+		}).then((doc) => {
+			if (imageToPost) {
+				const uploadTask = storage
+					.ref(`posts/${doc.id}`)
+					.putString(imageToPost, "data_url");
+
+				removeImageToPost();
+
+				uploadTask.on(
+					"state_change",
+					null,
+					(error) => console.error(error),
+					() => {
+						storage.ref;
+						"posts"
+							.child(doc.id)
+							.getDownloadURL()
+							.then((url) => {
+								await addDoc(collection(db, "posts"))
+							});
+					}
+				);
+			}
 		});
 
 		inputRef.current.value = "";
+	};
+
+	const addImageToPost = (event) => {
+		const reader = new FileReader();
+		if (event.target.files[0]) {
+			reader.readAsDataURL(event.target.files[0]);
+		}
+
+		reader.onload = (readerEvent) => {
+			setImageToPost(readerEvent.target.result);
+		};
+	};
+
+	const removeImageToPost = () => {
+		setImageToPost(null);
 	};
 
 	return (
@@ -42,10 +83,20 @@ function InputBox() {
 						ref={inputRef}
 						placeholder={`What's on your mind, ${session.user.name}?`}
 					/>
-					<button type='submit' onClick={sendPost}>
+					<button hidden type='submit' onClick={sendPost}>
 						Submit
 					</button>
 				</form>
+
+				{imageToPost && (
+					<div
+						onClick={removeImageToPost}
+						className='flex flex-col filter hover:brightness-110 transition duration-150 transform hover:scale-105 cursor-pointer'
+					>
+						<img className='h-10 object-contain' src={imageToPost} alt='' />
+						<p className='text-xs text-red-500 text-center'>Remove</p>
+					</div>
+				)}
 			</div>
 
 			<div className='flex justify-evenly p-3 border-t'>
@@ -54,9 +105,18 @@ function InputBox() {
 					<p className='text-xs sm:text-sm xl:text-base'>Live Video</p>
 				</div>
 
-				<div className='inputIcon'>
+				<div
+					onClick={() => filePickerRef.current.click()}
+					className='inputIcon'
+				>
 					<CameraIcon className='h-7 text-green-400' />
 					<p className='text-xs sm:text-sm xl:text-base'>Photo/Video</p>
+					<input
+						ref={filePickerRef}
+						onChange={addImageToPost}
+						type='file'
+						hidden
+					/>
 				</div>
 
 				<div className='inputIcon'>
